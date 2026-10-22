@@ -80,7 +80,7 @@ jobs:
       - name: Build FFmpeg
         run: |
           source morph/config.sh
-          FFBUILD_EXTRA_VERSION="morph-${{ steps.ver.outputs.version }}" ./build.sh "$TARGET" "${{ steps.ver.outputs.variant }}" "$ADDIN"
+          V="${{ steps.ver.outputs.version }}"; FFBUILD_EXTRA_VERSION="morph-${V#"$FFMPEG_VERSION"-}" ./build.sh "$TARGET" "${{ steps.ver.outputs.variant }}" "$ADDIN"
           ls -la artifacts
       - name: Package release files
         run: |
