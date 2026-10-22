@@ -44,14 +44,17 @@ cat <<EOF >"$BUILD_SCRIPT"
         --extra-cflags="\$FF_CFLAGS" --extra-cxxflags="\$FF_CXXFLAGS" --extra-libs="\$FF_LIBS" \
         --extra-ldflags="\$FF_LDFLAGS" --extra-ldexeflags="\$FF_LDEXEFLAGS"'$RPATH_LDEXEFLAGS' \
         --cc="\$CC" --cxx="\$CXX" --ar="\$AR" --ranlib="\$RANLIB" --nm="\$NM" \
-        --extra-version="\$(date +%Y%m%d)" || { cat ffbuild/config.log; exit 1; }
+        --extra-version="\${FFBUILD_EXTRA_VERSION:-\$(date +%Y%m%d)}" > /ffbuild/configure.log 2>&1 || { cat /ffbuild/configure.log; cat ffbuild/config.log; exit 1; }
+    cat /ffbuild/configure.log
+    # morph-ffmpeg: a component name that doesn't exist must fail the build, not be ignored.
+    if grep -q "did not match anything" /ffbuild/configure.log; then echo "Unknown component in FF_CONFIGURE"; exit 1; fi
     make -j\$(nproc) V=1
     make install install-doc
 EOF
 
 [[ -t 1 ]] && TTY_ARG="-t" || TTY_ARG=""
 
-docker run --rm -i $TTY_ARG "${UIDARGS[@]}" -v "$PWD/ffbuild":/ffbuild -v "$BUILD_SCRIPT":/build.sh "$IMAGE" bash /build.sh
+docker run --rm -i $TTY_ARG "${UIDARGS[@]}" -e FFBUILD_EXTRA_VERSION -v "$PWD/ffbuild":/ffbuild -v "$BUILD_SCRIPT":/build.sh "$IMAGE" bash /build.sh
 
 if [[ -n "$FFBUILD_OUTPUT_DIR" ]]; then
     mkdir -p "$FFBUILD_OUTPUT_DIR"
@@ -69,6 +72,9 @@ mkdir -p "ffbuild/pkgroot/$BUILD_NAME"
 package_variant ffbuild/prefix "ffbuild/pkgroot/$BUILD_NAME"
 
 [[ -n "$LICENSE_FILE" ]] && cp "ffbuild/ffmpeg/$LICENSE_FILE" "ffbuild/pkgroot/$BUILD_NAME/LICENSE.txt"
+# morph-ffmpeg: record exactly what was built.
+cp ffbuild/configure.log "ffbuild/pkgroot/$BUILD_NAME/configure.log"
+git -C ffbuild/ffmpeg rev-parse HEAD > "ffbuild/pkgroot/$BUILD_NAME/ffmpeg-commit.txt" || true
 
 cd ffbuild/pkgroot
 if [[ "${TARGET}" == win* ]]; then

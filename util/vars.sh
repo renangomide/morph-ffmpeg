@@ -36,6 +36,9 @@ REGISTRY="${REGISTRY_OVERRIDE:-ghcr.io}"
 BASE_IMAGE="${REGISTRY}/${REPO}/base:latest"
 TARGET_IMAGE="${REGISTRY}/${REPO}/base-${TARGET}:latest"
 IMAGE="${REGISTRY}/${REPO}/${TARGET}-${VARIANT}${ADDINS_STR:+-}${ADDINS_STR}:latest"
+# morph-ffmpeg: build on top of pinned (digest) base images instead of ${REGISTRY}/${REPO}/base*:latest.
+BASE_IMAGE_REF="${BASE_IMAGE_REF:-${BASE_IMAGE}${DOCKER_TAG_SUFFIX:-}}"
+TARGET_BASE_IMAGE_REF="${TARGET_BASE_IMAGE_REF:-${REGISTRY}/${REPO}/base-${TARGET}:latest${DOCKER_TAG_SUFFIX:-}}"
 
 ffbuild_ffver() {
     case "$ADDINS_STR" in

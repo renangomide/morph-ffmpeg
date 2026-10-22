@@ -1,68 +1,35 @@
-# FFmpeg Static Auto-Builds
+# morph-ffmpeg
 
-Static Windows (x86_64) and Linux (x86_64) Builds of ffmpeg master and latest release branch.
+A trimmed GPL build of [FFmpeg](https://ffmpeg.org) for Windows x64, made for **Morph** (OpenMorph), the
+right-click file converter. It keeps only what Morph uses: `--disable-everything` plus an explicit list of
+encoders, decoders, (de)muxers, parsers, bitstream filters, filters and protocols (`morph/components.sh`),
+and only these external libraries: x264, x265, SVT-AV1, libvpx, dav1d, libvmaf (built-in models),
+libopus, LAME, libvorbis/libogg, zlib, libiconv, NVENC headers (nv-codec-headers), AMF headers, libvpl (QSV).
 
-Windows builds are targetting Windows 7 and newer, provided UCRT is installed.
-The minimum supported version is Windows 10 22H2, no guarantees on anything older.
+## Releases
 
-Linux builds are targetting RHEL/CentOS 8 (glibc-2.28 + linux-4.18) and anything more recent.
+Tag `v<FFmpeg version>-<rev>` (must match `morph/config.sh`, e.g. `v9.0.2-1`). Each release has:
 
-## Auto-Builds
+- `morph-ffmpeg-<ver>-win64.zip`: `ffmpeg.exe`, `ffprobe.exe`, the shared FFmpeg DLLs, `LICENSE.txt` (GPL-3.0),
+  `licenses/` (every library's licence files + `configure.log`), `BUILDINFO.txt` (versions, commits, flags).
+- `morph-ffmpeg-<ver>-source.tar.xz`: the complete corresponding source: FFmpeg at the tag, every library at
+  the pinned revision, and these build scripts.
+- `SHA256SUMS`.
 
-Builds run daily at 12:00 UTC (or GitHubs idea of that time) and are automatically released on success.
+## How it builds
 
-**Auto-Builds run ONLY for win(arm)64 and linux(arm)64. There are no win32/x86 auto-builds, though you can produce win32 builds yourself following the instructions below.**
+`.github/workflows/morph.yml` (Ubuntu runner, Docker cross-compile with mingw-w64):
+`generate.sh win64 morph-shared 9.0` → `download.sh` (only the needed stages) → `docker buildx build`
+(dependency image) → `build.sh` (FFmpeg, configure must not warn about unknown components) →
+`morph/package.sh`. A Windows job then runs `morph/check.sh`: the component lists must equal
+`morph/expected/*.txt` exactly, and smoke tests run every feature Morph uses (x264/x265/SVT-AV1/VP9/VP8,
+two-pass, remux, autorotate, GIF palette, VMAF JSON with the built-in model, MP3/M4A/FLAC cover art, ...).
 
-### Release Retention Policy
+To change the feature set: edit `morph/components.sh`, run the workflow, review the `component-lists`
+artifact, copy it into `morph/expected/`, commit.
 
-- The last build of each month is kept for two years.
-- The last 14 daily builds are kept.
-- The special "latest" build floats and provides consistent URLs always pointing to the latest build.
+## Credits and licences
 
-## Package List
-
-For a list of included dependencies check the scripts.d directory.
-Every file corresponds to its respective package.
-
-## How to make a build
-
-### Prerequisites
-
-* bash
-* docker
-
-### Build Image
-
-* `./makeimage.sh target variant [addin [addin] [addin] ...]`
-
-### Build FFmpeg
-
-* `./build.sh target variant [addin [addin] [addin] ...]`
-
-On success, the resulting zip file will be in the `artifacts` subdir.
-
-### Targets, Variants and Addins
-
-Available targets:
-* `win64` (x86_64 Windows)
-* `win32` (x86 Windows)
-* `linux64` (x86_64 Linux, glibc>=2.28, linux>=4.18)
-* `linuxarm64` (arm64 (aarch64) Linux, glibc>=2.28, linux>=4.18)
-
-The linuxarm64 target will not build some dependencies due to lack of arm64 (aarch64) architecture support or cross-compiling restrictions.
-
-* `davs2` and `xavs2`: aarch64 support is broken.
-* `libmfx` and `libva`: Library for Intel QSV, so there is no aarch64 support.
-
-Available variants:
-* `gpl` Includes all dependencies, even those that require full GPL instead of just LGPL.
-* `lgpl` Lacking libraries that are GPL-only. Most prominently libx264 and libx265.
-* `nonfree` Includes fdk-aac in addition to all the dependencies of the gpl variant.
-* `gpl-shared` Same as gpl, but comes with the libav* family of shared libs instead of pure static executables.
-* `lgpl-shared` Same again, but with the lgpl set of dependencies.
-* `nonfree-shared` Same again, but with the nonfree set of dependencies.
-
-All of those can be optionally combined with any combination of addins:
-* `4.4`/`5.0`/`5.1`/`6.0`/`6.1`/`7.0`/`7.1`/`8.0`/`8.1`/`9.0` to build from the respective release branch instead of master.
-* `debug` to not strip debug symbols from the binaries. This increases the output size by about 250MB.
-* `lto` build all dependencies and ffmpeg with -flto=auto (HIGHLY EXPERIMENTAL, broken for Windows, sometimes works for Linux)
+The build system is a copy of [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) (MIT, see `LICENSE`;
+upstream README in `README.upstream.md`), with a `morph` variant added. The binaries are GPL-3.0
+(FFmpeg configured with `--enable-gpl --enable-version3`).

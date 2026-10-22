@@ -1,0 +1,143 @@
+name: Build morph-ffmpeg
+
+# Push to main / PR: build + check (artifacts only). Tag v<ffmpeg version>-<rev> (e.g. v9.0.2-1): also release.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore: ['**.md', 'LICENSE']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: 'morph-shared (release layout) or morph (static exes, for size comparison)'
+        default: morph-shared
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  build:
+    name: Build (win64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Free disk space
+        run: ./util/free_disk_space.sh
+      - uses: docker/setup-buildx-action@v4
+        with:
+          buildkitd-config: .github/buildkit.toml
+      - name: Version
+        id: ver
+        run: |
+          source morph/config.sh
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+            [[ "$V" == "${FFMPEG_VERSION}-${MORPH_REV}" ]] || { echo "::error::tag $GITHUB_REF_NAME != v${FFMPEG_VERSION}-${MORPH_REV} (morph/config.sh)"; exit 1; }
+          else
+            V="${FFMPEG_VERSION}-${MORPH_REV}-dev.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "variant=${{ github.event.inputs.variant || 'morph-shared' }}" >> "$GITHUB_OUTPUT"
+      - name: Generate Dockerfile
+        run: |
+          source morph/config.sh
+          ./generate.sh "$TARGET" "${{ steps.ver.outputs.variant }}" "$ADDIN"
+          grep -o 'FF_CONFIGURE="[^"]*"' Dockerfile
+          morph/stages.sh | tee stages.txt
+      - name: Source cache
+        uses: actions/cache@v6
+        with:
+          path: .cache/downloads
+          key: morph-dl-${{ hashFiles('stages.txt', 'scripts.d/**') }}
+          restore-keys: morph-dl-
+      - name: Download sources
+        run: |
+          source morph/config.sh
+          FFBUILD_DL_STAGES="$(tr '\n' ' ' < stages.txt)" ./download.sh
+          ls -la .cache/downloads
+      - name: Image layer cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/buildx-cache
+          key: morph-img-${{ steps.ver.outputs.variant }}-${{ hashFiles('Dockerfile', 'scripts.d/**', 'util/run_stage.sh') }}
+          restore-keys: morph-img-${{ steps.ver.outputs.variant }}-
+      - name: Build dependency image
+        run: |
+          source morph/config.sh
+          source util/vars.sh "$TARGET" "${{ steps.ver.outputs.variant }}" "$ADDIN"
+          docker buildx build --load -t "$IMAGE" \
+            --cache-from type=local,src="$RUNNER_TEMP/buildx-cache" \
+            --cache-to type=local,mode=max,compression=zstd,dest="$RUNNER_TEMP/buildx-cache-new" .
+          rm -rf "$RUNNER_TEMP/buildx-cache" && mv "$RUNNER_TEMP/buildx-cache-new" "$RUNNER_TEMP/buildx-cache"
+      - name: Build FFmpeg
+        run: |
+          source morph/config.sh
+          FFBUILD_EXTRA_VERSION="morph-${{ steps.ver.outputs.version }}" ./build.sh "$TARGET" "${{ steps.ver.outputs.variant }}" "$ADDIN"
+          ls -la artifacts
+      - name: Package release files
+        run: |
+          morph/package.sh artifacts/ffmpeg-*.zip "${{ steps.ver.outputs.version }}"
+          {
+            echo "### morph-ffmpeg ${{ steps.ver.outputs.version }} (${{ steps.ver.outputs.variant }})"
+            echo '```'
+            unzip -l dist/*-win64.zip | grep -E '\.(exe|dll)$'
+            ls -l dist
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: morph-ffmpeg-dist
+          path: dist/*
+          if-no-files-found: error
+
+  check:
+    name: Check components + smoke tests (Windows)
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: morph-ffmpeg-dist
+          path: dist
+      - name: Check
+        shell: bash
+        run: |
+          cd dist && unzip -q ./*-win64.zip && cd ..
+          CHECK_LISTS_DIR="$PWD/lists" morph/check.sh dist/morph-ffmpeg-*-win64
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: component-lists
+          path: lists/*
+
+  release:
+    name: Release
+    needs: [build, check]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: morph-ffmpeg-dist
+          path: dist
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ needs.build.outputs.version }}"
+          (cd dist && sha256sum -c SHA256SUMS)
+          unzip -p dist/morph-ffmpeg-$V-win64.zip "morph-ffmpeg-$V-win64/BUILDINFO.txt" > notes.txt
+          { echo; echo "SHA-256:"; echo '```'; cat dist/SHA256SUMS; echo '```'; } >> notes.txt
+          gh release create "$GITHUB_REF_NAME" --title "morph-ffmpeg $V" --notes-file notes.txt dist/*

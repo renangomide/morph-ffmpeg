@@ -3,6 +3,23 @@
 SCRIPT_SKIP="1"
 
 ffbuild_depends() {
+    # morph-ffmpeg: only the external libraries Morph uses (+ their dependencies).
+    if [[ $VARIANT == morph* ]]; then
+        echo zlib
+        echo libvorbis
+        echo vmaf
+        echo amf
+        echo dav1d
+        echo ffnvcodec
+        echo libmp3lame
+        echo libopus
+        echo libvpx
+        echo onevpl
+        echo svtav1
+        echo x264
+        echo x265
+        return 0
+    fi
     echo libiconv
     echo zlib
     echo fribidi
