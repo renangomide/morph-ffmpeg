@@ -53,7 +53,8 @@ jobs:
           grep -o 'FF_CONFIGURE="[^"]*"' Dockerfile
           morph/stages.sh | tee stages.txt
       - name: Source cache
-        uses: actions/cache@v6
+        id: dlcache
+        uses: actions/cache/restore@v6
         with:
           path: .cache/downloads
           key: morph-dl-${{ hashFiles('stages.txt', 'scripts.d/**') }}
@@ -63,8 +64,15 @@ jobs:
           source morph/config.sh
           FFBUILD_DL_STAGES="$(tr '\n' ' ' < stages.txt)" ./download.sh
           ls -la .cache/downloads
+      - name: Save source cache
+        if: steps.dlcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .cache/downloads
+          key: morph-dl-${{ hashFiles('stages.txt', 'scripts.d/**') }}
       - name: Image layer cache
-        uses: actions/cache@v6
+        id: imgcache
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/buildx-cache
           key: morph-img-${{ steps.ver.outputs.variant }}-${{ hashFiles('Dockerfile', 'scripts.d/**', 'util/run_stage.sh') }}
@@ -77,6 +85,13 @@ jobs:
             --cache-from type=local,src="$RUNNER_TEMP/buildx-cache" \
             --cache-to type=local,mode=max,compression=zstd,dest="$RUNNER_TEMP/buildx-cache-new" .
           rm -rf "$RUNNER_TEMP/buildx-cache" && mv "$RUNNER_TEMP/buildx-cache-new" "$RUNNER_TEMP/buildx-cache"
+      # Saved right away (not at job end), so a later FFmpeg failure doesn't throw away an hour of library builds.
+      - name: Save image layer cache
+        if: steps.imgcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/buildx-cache
+          key: morph-img-${{ steps.ver.outputs.variant }}-${{ hashFiles('Dockerfile', 'scripts.d/**', 'util/run_stage.sh') }}
       - name: Build FFmpeg
         run: |
           source morph/config.sh
