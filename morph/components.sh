@@ -17,7 +17,8 @@ MORPH_ENCODERS=(
 )
 
 MORPH_DECODERS=(
-    # video
+    # video (wrapped_avframe: what the lavfi device outputs)
+    wrapped_avframe
     h264 hevc vp8 vp9 libdav1d mpeg1video mpeg2video mpeg4
     msmpeg4v1 msmpeg4v2 msmpeg4v3 wmv1 wmv2 wmv3 vc1 h263 h263p flv vp6 vp6a vp6f
     mjpeg png bmp gif rawvideo prores dvvideo theora
