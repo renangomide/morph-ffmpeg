@@ -63,7 +63,7 @@ printf '%s' "$DEPLIST" > "$SRC/deps/VERSIONS.txt"
 CONFIGURE_FLAGS="$(grep -o 'FF_CONFIGURE="[^"]*"' Dockerfile | sed 's/^FF_CONFIGURE=//; s/"//g')"
 BUILDINFO="morph-ffmpeg ${VER} (win64, shared, GPL-3.0-or-later)
 Built for Morph (OpenMorph) by GitHub Actions from https://github.com/${GITHUB_REPOSITORY:-renangomide/morph-ffmpeg}
-Build scripts: based on BtbN/FFmpeg-Builds (MIT, https://github.com/BtbN/FFmpeg-Builds), upstream commit $(git rev-parse upstream/master 2>/dev/null || echo 937868360a21d711ec94a33f5591d345ad9b7754)
+Build scripts: based on BtbN/FFmpeg-Builds (MIT, https://github.com/BtbN/FFmpeg-Builds), upstream commit 937868360a21d711ec94a33f5591d345ad9b7754
 Build scripts commit: $(git rev-parse HEAD)
 
 FFmpeg ${FFMPEG_VERSION} (tag ${FFMPEG_TAG}, commit ${FFCOMMIT}), configured with --enable-gpl --enable-version3: GPL-3.0.
