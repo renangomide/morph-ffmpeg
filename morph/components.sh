@@ -34,7 +34,7 @@ MORPH_DECODERS=(
 
 MORPH_MUXERS=(mp4 mov ipod matroska webm avi gif mp3 wav flac ogg opus adts null mpegts)
 
-MORPH_DEMUXERS=(mov matroska avi asf flv mpegps mpegts mpegvideo mp3 wav flac aac ogg aiff)
+MORPH_DEMUXERS=(mov matroska avi asf flv mpegps mpegts mpegvideo mp3 wav flac aac ogg aiff gif)
 
 MORPH_PARSERS=(
     h264 hevc vp8 vp9 av1 mpeg4video mpegvideo mpegaudio aac aac_latm ac3 flac vorbis opus
