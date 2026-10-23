@@ -1,0 +1,15 @@
+aac
+aiff
+asf
+avi
+flac
+flv
+lavfi
+matroska,webm
+mov,mp4,m4a,3gp,3g2,mj2
+mp3
+mpeg
+mpegts
+mpegvideo
+ogg
+wav

@@ -17,9 +17,10 @@ lst() { # kind -> sorted names
     case "$1" in
     filters) "$FF" -hide_banner -filters | sed -n '/^ *------/,$p' | tail -n +2 | awk '{print $2}' ;;
     bsfs) "$FF" -hide_banner -bsfs | tail -n +2 | awk '{print $1}' ;;
-    protocols) "$FF" -hide_banner -protocols | awk '/^Input:/{m="in:";next} /^Output:/{m="out:";next} {print m $1}' ;;
+    protocols) "$FF" -hide_banner -protocols | awk '/^Input:/{m="in:";next} /^Output:/{m="out:";next} m!="" {print m $1}' ;;
+    muxers|demuxers) "$FF" -hide_banner -"$1" | sed -n '/^ *-\{2,\}/,$p' | tail -n +2 | cut -c6- | awk '{print $1}' ;;
     *) "$FF" -hide_banner -"$1" | sed -n '/^ *-\{2,\}/,$p' | tail -n +2 | awk '{print $2}' ;;
-    esac | tr -d '\r' | sort
+    esac | tr -d '\r' | LC_ALL=C sort
 }
 
 for k in encoders decoders muxers demuxers filters bsfs protocols devices; do
